@@ -195,7 +195,7 @@ sub main () {
         my %modulenames_and_versions = ();
 
         foreach my $module (@needed_modules) {
-                if ($module =~ m#^(.*)(?:==(.*))$#) {
+                if ($module =~ m#^(.*)(?:={1,}(.*))$#) {
                         my $name = $1;
                         my $version = $2 // "any";
 
