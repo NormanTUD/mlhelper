@@ -119,7 +119,7 @@ sub find_version {
 
         # exakte matche finden
 
-        foreach my $possible_version (sort { version->parse( $a->{version} ) <=> version->parse( $b->{version} ) } @possible_versions) {
+        foreach my $possible_version (sort { get_comparable_version_number( $a->{version} ) <=> get_comparable_version_number( $b->{version} ) } @possible_versions) {
                 my ($tversion, $stack, $tname) = ($possible_version->{version}, $possible_version->{stack}, $possible_version->{name});
                 if(lc $name eq lc $tname) {
                         if ($version eq $tversion) {
@@ -132,7 +132,7 @@ sub find_version {
 
         my @possible_versions_narrower = ();
 
-        foreach my $possible_version (sort { version->parse( $a->{version} ) <=> version->parse( $b->{version} ) } @possible_versions) {
+        foreach my $possible_version (sort { get_comparable_version_number( $a->{version} ) <=> get_comparable_version_number( $b->{version} ) } @possible_versions) {
                 my ($tversion, $stack, $tname) = ($possible_version->{version}, $possible_version->{stack}, $possible_version->{name});
                 if(lc $name eq lc $tname) {
                         if ($tversion =~ m#^$version#) {
@@ -157,7 +157,7 @@ sub find_version {
                                         push @closest_versions, { "version" => $this_version, "compareablenumber" => get_comparable_version_number($this_version->{version}) };
                                 }
                         }
-                        my @sorted = sort { int($a->{compareablenumber} <=> $b->{compareablenumber}) } @closest_versions;
+                        my @sorted = sort { ($b->{compareablenumber} - $a->{compareablenumber}) <=> ($a->{compareablenumber} - $b->{compareablenumber}) } @closest_versions;
 
                         my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: $version.", "MENU", $name, $version, @sorted;
 
