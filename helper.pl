@@ -11,7 +11,13 @@ my %options = (
         maindir => '',
         needed => undef,
         autoexpandsearch => 0,
-        shown_mlpurge_message => 0
+        shown_mlpurge_message => 0,
+        contains_pip => 0,
+        contains_conda => 0,
+        contains_virtualenv => 0,
+        shown_pip_msg => 0,
+        shown_conda_msg => 0,
+        shown_virtualenv_msg => 0
 );
 
 
@@ -235,12 +241,12 @@ sub find_version {
                         }
                         my @sorted = sort { ($b->{compareablenumber} - $a->{compareablenumber}) <=> ($a->{compareablenumber} - $b->{compareablenumber}) } @closest_versions;
 
-                        my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: $version.", "MENU", $name, $version, @sorted;
+                        my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version of $name you wanted was: $version.", "MENU", $name, $version, @sorted;
 
                         return ($chosen);
                 }
         } else {
-                my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: *any*.", "MENU", $name, "any", +();
+                my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version of $name you wanted was: *any*.", "MENU", $name, "any", +();
                 return $chosen;
         }
 
@@ -284,6 +290,7 @@ sub main () {
 
         foreach my $module (@needed_modules) {
                 if ($module =~ m#^(.*?)(?:={1,}(.*))?$#) {
+
                         my $name = $1;
                         my $version = $2 // "any";
 
@@ -301,23 +308,24 @@ sub suggestion_string {
         my ($name, $version) = @_;
         my @possible_versions = find_version($name, $version);
 
-        my $contains_virtualenv = 0;
-        my $contains_pip = 0;
-        my $contains_conda = 0;
-
         foreach my $possible_version_i (0 .. $#possible_versions) {
                 my $possible_version = $possible_versions[$possible_version_i];
                 if($possible_version =~ m#virtualenv-->(.*)#) {
-                        $contains_virtualenv = 1;
+                        $options{contains_virtualenv} = 1;
                 } elsif($possible_version =~ m#pip(3?)-->(.*)#) {
-                        $contains_pip = 1;
+                        $options{contains_pip} = 1;
                 } elsif($possible_version =~ m#conda-->(.*)\n#) {
-                        $contains_conda = 1;
+                        $options{contains_conda} = 1;
                 }
                 $possible_version_i++;
         }
 
-        if ($contains_pip) {
+        if(!$options{shown_modenv} && !$options{contains_pip} && !$options{contains_virtualenv} && !$options{contains_conda}) {
+                print_command "ml modenv/$options{modenv}";
+                $options{shown_modenv} = 1;
+        }
+
+        if ($options{contains_pip} && !$options{shown_pip_msg}) {
                 print "======= Explanation pip =========\n";
                 print "pip is pythons module system.\n";
                 print "this will install this to your\n";
@@ -325,19 +333,21 @@ sub suggestion_string {
                 print "will have to do this, too!\n";
                 print "Will not work on Power-PC-Machines\n";
                 print "like Machine-Learning-Partition!\n";
+                $options{shown_pip_msg} = 1;
         }
 
-        if($contains_conda) {
+        if($options{contains_conda} && !$options{show_conda_msg}) {
                 print "======= Explanation conda ========\n";
                 print "Like virtualenv, but more general.\n";
                 print "a way to create a specific environment\n";
                 print "in which you can install environments\n";
                 print "more or less as you wish\n";
                 print "On x86_64 machines, you have to load\n";
-                print "ml Miniconda2\n"
+                print "ml Miniconda2\n";
+                $options{shown_conda_msg} = 1;
         }
 
-        if($contains_virtualenv) {
+        if($options{contains_virtualenv} && !$options{shown_virtualenv_msg}) {
                 print "======= Explanation virtualenv =======\n";
                 print "Like conda , but only for python.\n";
                 print "a way to create a specific environment\n";
@@ -350,6 +360,7 @@ sub suggestion_string {
                 print "pip3 install programm==version\n";
                 print "... do your stuff...\n";
                 print "deactivate\n";
+                $options{shown_virtualenv_msg} = 1;
         }
 
         if (@possible_versions && !$options{shown_mlpurge_message}) {
@@ -359,12 +370,12 @@ sub suggestion_string {
                 $options{shown_mlpurge_message} = 1;
         }
 
-        if($contains_conda + $contains_virtualenv + $contains_pip >= 2) {
+        if($options{contains_conda} + $options{contains_virtualenv} + $options{contains_pip} >= 2) {
                 print_warning "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
                 print_warning "Its not recommended to use more than one of pip, virtualenv and conda\n";
         }
 
-        if($contains_virtualenv) {
+        if($options{contains_virtualenv}) {
                 print_command "source \$ENVNAME/bin/activate";
         }
         foreach my $possible_version_i (0 .. $#possible_versions) {
