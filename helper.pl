@@ -17,7 +17,8 @@ my %options = (
         contains_virtualenv => 0,
         shown_pip_msg => 0,
         shown_conda_msg => 0,
-        shown_virtualenv_msg => 0
+        shown_virtualenv_msg => 0,
+        shown_virtualenv_source => 0
 );
 
 
@@ -375,8 +376,9 @@ sub suggestion_string {
                 print_warning "Its not recommended to use more than one of pip, virtualenv and conda\n";
         }
 
-        if($options{contains_virtualenv}) {
+        if($options{contains_virtualenv} && !$options{shown_virtualenv_source}) {
                 print_command "source \$ENVNAME/bin/activate";
+                $options{shown_virtualenv_source} = 1;
         }
         foreach my $possible_version_i (0 .. $#possible_versions) {
                 my $possible_version = $possible_versions[$possible_version_i];
