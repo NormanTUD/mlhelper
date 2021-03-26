@@ -3,9 +3,46 @@
 use strict;
 use warnings;
 use Data::Dumper;
+use Term::ANSIColor;
+
+my %options = (
+        debug => 0,
+        modenv => "",
+        maindir => ''
+);
 
 
-my $maindir = "/sw/installed/";
+sub print_warning ($) {
+        my $arg = shift;
+        print color("ON_BRIGHT_RED BLACK").$arg.color("reset")."\n";
+}
+
+sub print_command ($) {
+        my $arg = shift;
+        print color("ON_BRIGHT_GREEN BLACK").$arg.color("reset")."\n";
+}
+
+sub debug (@) {
+        if($options{debug}) {
+                foreach (@_) {
+                        warn "$_\n";
+                }
+        }
+}
+
+sub analyze_args {
+        my @args = @_;
+
+        foreach (@args) {
+                if(m#^--debug$#) {
+                        $options{debug} = 1;
+                } elsif (m#^--modenv=(ml|scs5)$#) {
+                        $options{modenv} = $1;
+                } else {
+                        die "Unknown parameter $_";
+                }
+        }
+}
 
 sub msg ($;$) {
         my $msg = shift or die "Empty message";
@@ -42,6 +79,30 @@ sub input ($;$) {
 
         return $input if $retval == 0;
         exit;
+}
+
+sub whichmodenv {
+        my $menustr = q#"scs5" "The modenv for x86_64" "ml" "the modenv for power pc on the ML partition"#;
+
+        my $slurped = '';
+        if($options{modenv}) {
+                $slurped = $options{modenv};
+        } else {
+                my $command = qq#whiptail --title "Which modenv?" --menu "Which modenv do you want to choose?" 30 100 16 $menustr "exit" "exit" 2> .reply_answer#;
+
+                system $command;
+                $slurped = read_file(".reply_answer");
+                unlink ".reply_answer" or warn $!;
+        }
+
+        if($slurped eq "scs5") {
+                $options{maindir} = "/software/haswell/";
+        } else {
+                $options{maindir} = "/software/ml/";
+        }
+
+        exit if $slurped eq "exit";
+        return $slurped;
 }
 
 sub menu ($$@) {
@@ -82,20 +143,20 @@ sub get_possible_matches {
 
         die "name undefined" unless defined $name;
 
-        opendir my $dir, $maindir or die "Cannot open directory: $!";
+        opendir my $dir, $options{maindir} or die "Cannot open directory $options{maindir}: $!";
         my @files = readdir $dir;
         closedir $dir;
 
         my @possible_versions = ();
         foreach my $file_or_dir (@files) {
-                if(-d "$maindir/$file_or_dir") {
+                if(-d "$options{maindir}/$file_or_dir") {
                         if (uc $file_or_dir eq uc $name) {
-                                opendir my $dir, "$maindir/$file_or_dir" or die "Cannot open directory: $!";
+                                opendir my $dir, "$options{maindir}/$file_or_dir" or die "Cannot open directory: $!";
                                 my @files_in_module_dir = readdir $dir;
                                 closedir $dir;
 
                                 foreach my $versiondir (@files_in_module_dir) {
-                                        my $thisdir = "$maindir/$file_or_dir/$versiondir";
+                                        my $thisdir = "$options{maindir}/$file_or_dir/$versiondir";
                                         if(-d $thisdir) {
                                                 # 1.13.1-fosscuda-2019a-Python-3.7.2
                                                 if($versiondir =~ m#^(\d+(?:\.\d+)+)-(.*)$#) {
@@ -121,6 +182,7 @@ sub find_version {
 
         foreach my $possible_version (sort { get_comparable_version_number( $a->{version} ) <=> get_comparable_version_number( $b->{version} ) } @possible_versions) {
                 my ($tversion, $stack, $tname) = ($possible_version->{version}, $possible_version->{stack}, $possible_version->{name});
+                
                 if(lc $name eq lc $tname) {
                         if ($version eq $tversion) {
                                 return "ml $name/$tversion-$stack";
@@ -141,7 +203,11 @@ sub find_version {
                 }
         }
 
-        if (@possible_versions_narrower) {
+        if (scalar @possible_versions_narrower == 1) {
+                return map { "ml $_->{name}/$_->{version}-$_->{stack}" } @possible_versions_narrower;
+        }
+
+        if (@possible_versions_narrower >= 2) {
                 return +("=========================> One of these:", (map { "ml $_->{name}/$_->{version}-$_->{stack}" } @possible_versions_narrower), "<==================================");
         }
 
@@ -168,6 +234,7 @@ sub find_version {
                 print "For more detailled search for modules like $name, you have to enter a version number (like $name==1.25.6)\n";
         }
 
+        print "Nothing found for $name! Sorry\n";
         return ();
 }
 
@@ -191,6 +258,8 @@ sub get_comparable_version_number {
 }
 
 sub main () {
+        whichmodenv();
+
         my @needed_modules = ();
         while (my $needed = input("Please name the module you need in Python-Syntax, possibly with version-number, like:\ntensorflow==1.15\nEnter nothing to end this list.", "title")) {
                 last unless $needed;
@@ -261,6 +330,7 @@ sub suggestion_string {
                 print "in which you can install environments\n";
                 print "more or less as you wish. Use pip there.\n";
                 print "How to set up:\n";
+                print "ENVNAME=...\n";
                 print "python3 -m venv \$ENVNAME\n";
                 print "source \$ENVNAME/bin/activate\n";
                 print "pip3 install programm==version\n";
@@ -268,40 +338,37 @@ sub suggestion_string {
                 print "deactivate\n";
         }
 
-        print "==============================================================\n";
-        print "Try running ml purge if this does not work\n";
-        print "==============================================================\n";
-
-        if($contains_conda || $contains_virtualenv || $contains_pip) {
-                print "=====================> CODE: ============================>\n";
+        if (@possible_versions) {
+                print "==============================================================\n";
+                print "Try running ml purge if this does not work\n";
+                print "==============================================================\n";
         }
 
-
         if($contains_conda + $contains_virtualenv + $contains_pip >= 2) {
-                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-                print "Its not recommended to use more than one of pip, virtualenv and conda\n";
+                print_warning "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+                print_warning "Its not recommended to use more than one of pip, virtualenv and conda\n";
         }
 
         if($contains_virtualenv) {
-                print "source \$ENVNAME/bin/activate\n";
+                print_command "source \$ENVNAME/bin/activate";
         }
         foreach my $possible_version_i (0 .. $#possible_versions) {
                 my $possible_version = $possible_versions[$possible_version_i];
                 if($possible_version =~ m#virtualenv-->(.*)#) {
-                        print "pip3 install --user $1\n";
+                        print_command "pip3 install --user $1";
                 } elsif($possible_version =~ m#pip(3?)-->(.*)#) {
-                        print "pip$1 install --user $2\n";
+                        print_command "pip$1 install --user $2";
                 } elsif($possible_version =~ m#conda-->(.*)#) {
-                        print "conda install $1\n";
+                        print_command "conda install $1";
                 } elsif($possible_version =~ m#virtualenv-->(.*)#) {
-                        print "pip$1 install --user $2\n";
+                        print_command "pip$1 install --user $2";
                 } else {
-                        print "$possible_version\n";
+                        print_command "$possible_version";
                 }
                 $possible_version_i++;
         }
 }
 
-#die "1.10.0: ".get_comparable_version_number("1.10.0")."\n"."1.11.0: ".get_comparable_version_number("1.11.0");
+analyze_args(@ARGV);
 
 main
