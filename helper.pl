@@ -123,7 +123,7 @@ sub find_version {
                 my ($tversion, $stack, $tname) = ($possible_version->{version}, $possible_version->{stack}, $possible_version->{name});
                 if(lc $name eq lc $tname) {
                         if ($version eq $tversion) {
-                                return $possible_version; 
+                                return "ml $name/$tversion-$stack";
                         }
                 }
         }
@@ -157,13 +157,14 @@ sub find_version {
                                         push @closest_versions, { "version" => $this_version, "compareablenumber" => get_comparable_version_number($this_version->{version}) };
                                 }
                         }
-                        my @sorted = sort { int($b->{compareablenumber} <=> $a->{compareablenumber}) } @closest_versions;
+                        my @sorted = sort { int($a->{compareablenumber} <=> $b->{compareablenumber}) } @closest_versions;
 
                         my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: $version.", "MENU", $name, $version, @sorted;
 
                         return ($chosen);
                 }
         } else {
+                print "Could not find any modules for the search $name\n";
                 print "For more detailled search for modules like $name, you have to enter a version number (like $name==1.25.6)\n";
         }
 
@@ -223,13 +224,12 @@ sub suggestion_string {
 
         foreach my $possible_version_i (0 .. $#possible_versions) {
                 my $possible_version = $possible_versions[$possible_version_i];
-                if($possible_version =~ m#virtualenv (.*)#) {
-                    $contains_virtualenv = 1;
+                if($possible_version =~ m#virtualenv-->(.*)#) {
+                        $contains_virtualenv = 1;
                 } elsif($possible_version =~ m#pip(3?)-->(.*)#) {
-                        print "pip$1 install --user $2\n";
                         $contains_pip = 1;
                 } elsif($possible_version =~ m#conda-->(.*)\n#) {
-                        print "conda install $1";
+                        $contains_conda = 1;
                 }
                 $possible_version_i++;
         }
@@ -259,27 +259,49 @@ sub suggestion_string {
                 print "Like conda , but only for python.\n";
                 print "a way to create a specific environment\n";
                 print "in which you can install environments\n";
-                print "more or less as you wish\n";
+                print "more or less as you wish. Use pip there.\n";
+                print "How to set up:\n";
+                print "python3 -m venv \$ENVNAME\n";
+                print "source \$ENVNAME/bin/activate\n";
+                print "pip3 install programm==version\n";
+                print "... do your stuff...\n";
+                print "deactivate\n";
         }
+
+        print "==============================================================\n";
+        print "Try running ml purge if this does not work\n";
+        print "==============================================================\n";
 
         if($contains_conda || $contains_virtualenv || $contains_pip) {
                 print "=====================> CODE: ============================>\n";
         }
 
+
+        if($contains_conda + $contains_virtualenv + $contains_pip >= 2) {
+                print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+                print "Its not recommended to use more than one of pip, virtualenv and conda\n";
+        }
+
+        if($contains_virtualenv) {
+                print "source \$ENVNAME/bin/activate\n";
+        }
         foreach my $possible_version_i (0 .. $#possible_versions) {
                 my $possible_version = $possible_versions[$possible_version_i];
-                if($possible_version =~ m#virtualenv (.*)#) {
-                    $contains_virtualenv = 1;
+                if($possible_version =~ m#virtualenv-->(.*)#) {
+                        print "pip3 install --user $1\n";
                 } elsif($possible_version =~ m#pip(3?)-->(.*)#) {
                         print "pip$1 install --user $2\n";
-                        $contains_pip = 1;
-                } elsif($possible_version =~ m#conda-->(.*)\n#) {
-                        print "conda install $1";
+                } elsif($possible_version =~ m#conda-->(.*)#) {
+                        print "conda install $1\n";
+                } elsif($possible_version =~ m#virtualenv-->(.*)#) {
+                        print "pip$1 install --user $2\n";
                 } else {
                         print "$possible_version\n";
                 }
                 $possible_version_i++;
         }
 }
+
+#die "1.10.0: ".get_comparable_version_number("1.10.0")."\n"."1.11.0: ".get_comparable_version_number("1.11.0");
 
 main
