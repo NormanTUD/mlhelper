@@ -10,7 +10,8 @@ my %options = (
         modenv => "",
         maindir => '',
         needed => undef,
-        autoexpandsearch => 0
+        autoexpandsearch => 0,
+        shown_mlpurge_message => 0
 );
 
 
@@ -132,7 +133,11 @@ sub menu ($$@) {
 
         exit if $slurped eq "exit";
         return "ml $slurped" unless $slurped =~ m#^virtualenv|conda|pip3?#;
-        return "$slurped-->$name==$version";
+        if($version eq "any") {
+                return "$slurped-->$name";
+        } else {
+                return "$slurped-->$name==$version";
+        }
 }
 
 sub read_file {
@@ -220,7 +225,6 @@ sub find_version {
         if($version) {
                 if($options{autoexpandsearch} || yesno "No matching versions found for $name $version. Do you want to expand your search to *nearest* versions?", "Sorry") {
                         my @closest_versions = ();
-                        my $myversion = get_comparable_version_number($version);
                         my @version_split = split(/\./, $version);
 
                         foreach my $this_version (@possible_versions) {
@@ -236,8 +240,8 @@ sub find_version {
                         return ($chosen);
                 }
         } else {
-                print "Could not find any modules for the search $name\n";
-                print "For more detailled search for modules like $name, you have to enter a version number (like $name==1.25.6)\n";
+                my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: *any*.", "MENU", $name, "any", +();
+                return $chosen;
         }
 
         print "Nothing found for $name! Sorry\n";
@@ -348,10 +352,11 @@ sub suggestion_string {
                 print "deactivate\n";
         }
 
-        if (@possible_versions) {
+        if (@possible_versions && !$options{shown_mlpurge_message}) {
                 print "==============================================================\n";
                 print "Try running ml purge if this does not work\n";
                 print "==============================================================\n";
+                $options{shown_mlpurge_message} = 1;
         }
 
         if($contains_conda + $contains_virtualenv + $contains_pip >= 2) {
