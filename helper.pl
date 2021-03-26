@@ -8,7 +8,9 @@ use Term::ANSIColor;
 my %options = (
         debug => 0,
         modenv => "",
-        maindir => ''
+        maindir => '',
+        needed => undef,
+        autoexpandsearch => 0
 );
 
 
@@ -38,6 +40,10 @@ sub analyze_args {
                         $options{debug} = 1;
                 } elsif (m#^--modenv=(ml|scs5)$#) {
                         $options{modenv} = $1;
+                } elsif (m#^--needed=(.*)$#) {
+                        push @{$options{needed}}, $1;
+                } elsif (m#^--autoexpandsearch$#) {
+                        $options{autoexpandsearch} = 1;
                 } else {
                         die "Unknown parameter $_";
                 }
@@ -212,7 +218,7 @@ sub find_version {
         }
 
         if($version) {
-                if(yesno "No matching versions found for $name $version. Do you want to expand your search to *nearest* versions?", "Sorry") {
+                if($options{autoexpandsearch} || yesno "No matching versions found for $name $version. Do you want to expand your search to *nearest* versions?", "Sorry") {
                         my @closest_versions = ();
                         my $myversion = get_comparable_version_number($version);
                         my @version_split = split(/\./, $version);
@@ -261,9 +267,13 @@ sub main () {
         whichmodenv();
 
         my @needed_modules = ();
-        while (my $needed = input("Please name the module you need in Python-Syntax, possibly with version-number, like:\ntensorflow==1.15\nEnter nothing to end this list.", "title")) {
-                last unless $needed;
-                push @needed_modules, $needed;
+        if(ref $options{needed}) {
+                push @needed_modules, @{$options{needed}};
+        } else {
+                while (my $needed = input("Please name the module you need in Python-Syntax, possibly with version-number, like:\ntensorflow==1.15\nEnter nothing to end this list.", "Module")) {
+                        last unless $needed;
+                        push @needed_modules, $needed;
+                }
         }
 
         my %modulenames_and_versions = ();
