@@ -322,7 +322,6 @@ sub prepare_suggestion_string {
                 } elsif($possible_version =~ m#pip(3?)-->(.*)#) {
                         $options{contains_pip} = 1;
                 } elsif($possible_version =~ m#conda-->(.*)#) {
-                print "$possible_version\n";
                         $options{contains_conda} = 1;
                 }
                 $possible_version_i++;
