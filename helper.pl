@@ -142,25 +142,29 @@ sub find_version {
         }
 
         if (@possible_versions_narrower) {
-                return @possible_versions_narrower;
+                return +("=========================> One of these:", (map { "ml $_->{name}/$_->{version}-$_->{stack}" } @possible_versions_narrower), "<==================================");
         }
 
-        if(yesno "No matching versions found for $name $version. Do you want to expand your search to *nearest* versions?", "Sorry") {
-                my @closest_versions = ();
-                my $myversion = get_comparable_version_number($version);
-                my @version_split = split(/\./, $version);
+        if($version) {
+                if(yesno "No matching versions found for $name $version. Do you want to expand your search to *nearest* versions?", "Sorry") {
+                        my @closest_versions = ();
+                        my $myversion = get_comparable_version_number($version);
+                        my @version_split = split(/\./, $version);
 
-                foreach my $this_version (@possible_versions) {
-                        my @this_version_split = split(/\./, $this_version->{version});
-                        if ($version_split[0] == $this_version_split[0]) {
-                                push @closest_versions, { "version" => $this_version, "compareablenumber" => get_comparable_version_number($this_version->{version}) };
+                        foreach my $this_version (@possible_versions) {
+                                my @this_version_split = split(/\./, $this_version->{version});
+                                if ($version_split[0] == $this_version_split[0]) {
+                                        push @closest_versions, { "version" => $this_version, "compareablenumber" => get_comparable_version_number($this_version->{version}) };
+                                }
                         }
+                        my @sorted = sort { int($b->{compareablenumber} <=> $a->{compareablenumber}) } @closest_versions;
+
+                        my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: $version.", "MENU", $name, $version, @sorted;
+
+                        return ($chosen);
                 }
-                my @sorted = sort { int($b->{compareablenumber} <=> $a->{compareablenumber}) } @closest_versions;
-
-                my $chosen = menu "The following versions have been found, ranked in probably that they will work as you expect (first = most likely). The version you wanted was: $version.", "MENU", $name, $version, @sorted;
-
-                return ($chosen);
+        } else {
+                print "For more detailled search for modules like $name, you have to enter a version number (like $name==1.25.6)\n";
         }
 
         return ();
@@ -195,13 +199,11 @@ sub main () {
         my %modulenames_and_versions = ();
 
         foreach my $module (@needed_modules) {
-                if ($module =~ m#^(.*)(?:={1,}(.*))$#) {
+                if ($module =~ m#^(.*?)(?:={1,}(.*))?$#) {
                         my $name = $1;
                         my $version = $2 // "any";
 
                         $version =~ s#[^0-9\.]##g;
-
-                        #/sw/installed/TensorFlow
 
                         suggestion_string($name, $version);
                 } else {
