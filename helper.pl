@@ -296,16 +296,22 @@ sub main () {
                         my $version = $2 // "any";
 
                         $version =~ s#[^0-9\.]##g;
-
-                        suggestion_string($name, $version);
+                        $modulenames_and_versions{$name}{$version} = prepare_suggestion_string($name, $version);
                 } else {
                         warn Dumper "Unparsable module name: $module";
                 }
         }
 
+        foreach my $module(keys %modulenames_and_versions) {
+                foreach my $version (keys %{$modulenames_and_versions{$module}}) {
+                        $version =~ s#[^0-9\.]##g;
+                        suggestion_string($module, $version, @{$modulenames_and_versions{$module}{$version}});
+                }
+        }
+
 }
 
-sub suggestion_string {
+sub prepare_suggestion_string {
         my ($name, $version) = @_;
         my @possible_versions = find_version($name, $version);
 
@@ -319,6 +325,21 @@ sub suggestion_string {
                         $options{contains_conda} = 1;
                 }
                 $possible_version_i++;
+        }
+
+        return \@possible_versions;
+}
+
+
+
+sub suggestion_string {
+        my ($name, $version, @possible_versions) = @_;
+
+        if (@possible_versions && !$options{shown_mlpurge_message}) {
+                print "==============================================================\n";
+                print "Try running ml purge if this does not work\n";
+                print "==============================================================\n";
+                $options{shown_mlpurge_message} = 1;
         }
 
         if(!$options{shown_modenv} && !$options{contains_pip} && !$options{contains_virtualenv} && !$options{contains_conda}) {
@@ -364,16 +385,10 @@ sub suggestion_string {
                 $options{shown_virtualenv_msg} = 1;
         }
 
-        if (@possible_versions && !$options{shown_mlpurge_message}) {
-                print "==============================================================\n";
-                print "Try running ml purge if this does not work\n";
-                print "==============================================================\n";
-                $options{shown_mlpurge_message} = 1;
-        }
 
-        if($options{contains_conda} + $options{contains_virtualenv} + $options{contains_pip} >= 2) {
-                print_warning "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-                print_warning "Its not recommended to use more than one of pip, virtualenv and conda\n";
+        if($options{contains_conda} && $options{contains_virtualenv}) {
+                print_warning "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+                print_warning "Its not recommended to use conda and virtualenv together!";
         }
 
         if($options{contains_virtualenv} && !$options{shown_virtualenv_source}) {
